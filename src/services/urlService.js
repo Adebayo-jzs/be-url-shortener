@@ -17,13 +17,6 @@ export async function createShortUrl(longUrl, customAlias = null, expiryDate = n
   let shortCode;
 
   if (customAlias) {
-    // Check if the alias is already in use
-    const existing = await db.findByShortCode(customAlias);
-    if (existing) {
-      const err = new Error('Custom alias already exists');
-      err.status = 409;
-      throw err;
-    }
     shortCode = customAlias;
   } else {
     // Increment global counter and encode to Base62
@@ -31,9 +24,19 @@ export async function createShortUrl(longUrl, customAlias = null, expiryDate = n
     shortCode = encode(counterVal);
   }
 
-  // Save the mapping to the database
-  const mapping = await db.insertMapping(shortCode, longUrl, expiryDate);
-  return mapping;
+  // Save the mapping to the database directly
+  try {
+    const mapping = await db.insertMapping(shortCode, longUrl, expiryDate);
+    return mapping;
+  } catch (err) {
+    // Check if it's a unique key violation (PostgreSQL code 23505)
+    if (err.code === '23505') {
+      const conflictErr = new Error('Custom alias already exists');
+      conflictErr.status = 409;
+      throw conflictErr;
+    }
+    throw err;
+  }
 }
 
 /**
@@ -49,6 +52,10 @@ export async function resolveShortCode(shortCode) {
   try {
     const cached = await cache.get(cacheKey);
     if (cached) {
+      // Check if it's a cached negative result
+      if (cached.isNull) {
+        return null;
+      }
       return cached;
     }
   } catch (err) {
@@ -59,13 +66,17 @@ export async function resolveShortCode(shortCode) {
   // Fallback to database
   const mapping = await db.findByShortCode(shortCode);
 
-  if (mapping) {
-    // Write back to cache for subsequent requests
-    try {
+  try {
+    if (mapping) {
+      // Write back to cache for subsequent requests
       await cache.set(cacheKey, mapping, CACHE_TTL);
-    } catch (err) {
-      console.error('Redis write failure during lookup:', err);
+    } else {
+      // Cache negative lookup (null result) for 5 minutes (300 seconds)
+      // to prevent cache penetration lookups from hitting the database repeatedly
+      await cache.set(cacheKey, { isNull: true }, 300);
     }
+  } catch (err) {
+    console.error('Redis write failure during lookup:', err);
   }
 
   return mapping;
