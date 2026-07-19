@@ -6,12 +6,6 @@ const CACHE_TTL = parseInt(process.env.CACHE_TTL, 10) || 86400;
 
 /**
  * Creates a new shortened URL mapping.
- * 
- * @param {string} longUrl - The original destination URL.
- * @param {string|null} customAlias - Optional custom short code alias.
- * @param {Date|null} expiryDate - Optional expiry timestamp.
- * @returns {Promise<object>} The created URL mapping record.
- * @throws {Error} 409 Conflict if custom alias is already in use.
  */
 export async function createShortUrl(longUrl, customAlias = null, expiryDate = null) {
   let shortCode;
@@ -41,9 +35,6 @@ export async function createShortUrl(longUrl, customAlias = null, expiryDate = n
 
 /**
  * Resolves a short code to its URL mapping using the cache-aside pattern.
- * 
- * @param {string} shortCode - The short code identifier.
- * @returns {Promise<object|null>} The URL mapping record, or null if not found.
  */
 export async function resolveShortCode(shortCode) {
   const cacheKey = `cache:${shortCode}`;
@@ -82,12 +73,7 @@ export async function resolveShortCode(shortCode) {
   return mapping;
 }
 
-/**
- * Re-exports database click increment.
- * 
- * @param {string} shortCode - The short code identifier.
- * @returns {Promise<object|null>} The updated click representation.
- */
+
 export async function incrementClicks(shortCode) {
   return await db.incrementClicks(shortCode);
 }

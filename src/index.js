@@ -11,17 +11,11 @@ const app = express();
 const PORT = process.env.PORT || 8000;
 
 app.use(express.json());
-
-// Register API routes
 app.use('/', shortenRouter);
 app.use('/', redirectRouter);
-
-// Register global error handler (must be last)
 app.use(errorHandler);
 
-/**
- * Boots the server by initializing Redis and then starting Express.
- */
+
 async function startServer() {
   try {
     console.log('Connecting to Redis caching layer...');
